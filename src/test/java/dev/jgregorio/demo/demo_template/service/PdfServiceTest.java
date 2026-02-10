@@ -1,18 +1,21 @@
 package dev.jgregorio.demo.demo_template.service;
 
-import org.junit.jupiter.api.Test;
-import java.io.ByteArrayOutputStream;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
+import org.junit.jupiter.api.Test;
 
 class PdfServiceTest {
 
     @Test
-    void testGeneratePdf() {
+    void testGeneratePdf() throws IOException {
         // Arrange
         PdfService pdfService = new PdfService();
         InputStream templateStream = getClass().getResourceAsStream("/templates/test.odt");
@@ -22,12 +25,12 @@ class PdfServiceTest {
         data.put("message", "Juan Pérez");
         data.put("date", "10 de Febrero de 2026");
 
-        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        FileOutputStream fo = new FileOutputStream("test.pdf");
 
         // Act
-        pdfService.generatePdf(templateStream, data, outputStream);
-
+        pdfService.generatePdf(templateStream, data, fo);
+        fo.close();
         // Assert
-        assertTrue(outputStream.size() > 0, "El PDF generado no debería estar vacío");
+        assertTrue(new File("test.pdf").exists(), "El PDF generado no debería estar vacío");
     }
 }
