@@ -1,0 +1,1 @@
+curl -X POST http://localhost:8080/pdf/generate -H "Content-Type: application/json" -d '[{"fileName":"test","message":"Hola","date":"2026-02-11"}, {"fileName":"test2","message":"Hola2","date":"2026-02-12"}]' -o test.zip
