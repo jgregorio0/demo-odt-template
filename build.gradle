@@ -1,7 +1,7 @@
 plugins {
-	id 'java'
-	id 'org.springframework.boot' version '3.5.10'
-	id 'io.spring.dependency-management' version '1.1.7'
+    id 'java'
+    id 'org.springframework.boot' version '3.5.10'
+    id 'io.spring.dependency-management' version '1.1.7'
 }
 
 group = 'dev.jgregorio.demo'
@@ -9,26 +9,37 @@ version = '0.0.1-SNAPSHOT'
 description = 'Demo project for Template'
 
 java {
-	toolchain {
-		languageVersion = JavaLanguageVersion.of(25)
-	}
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
 }
 
 repositories {
-	mavenCentral()
+    mavenCentral()
 }
 
 dependencies {
-	implementation 'org.springframework.boot:spring-boot-starter-web'
-	testImplementation 'org.springframework.boot:spring-boot-starter-test'
-	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 
-	implementation 'fr.opensagres.xdocreport:fr.opensagres.xdocreport.core:2.0.2'
-	implementation 'fr.opensagres.xdocreport:fr.opensagres.xdocreport.document.odt:2.0.2'
-	implementation 'fr.opensagres.xdocreport:fr.opensagres.xdocreport.converter.odt.odfdom:2.0.2'
-	implementation 'fr.opensagres.xdocreport:fr.opensagres.xdocreport.template.velocity:2.0.2'
+    // JODReports
+    implementation group: 'com.artofsolving', name: 'jodconverter', version: '2.2.1'
+    implementation group: 'net.sf.jodreports', name: 'jodreports', version: '2.4.0'
+}
+
+tasks.named('bootRun') {
+    jvmArgs([
+            '--add-exports', 'java.xml/com.sun.org.apache.xerces.internal.parsers=ALL-UNNAMED',
+            '--add-exports', 'java.xml/com.sun.org.apache.xerces.internal.util=ALL-UNNAMED'
+    ])
 }
 
 tasks.named('test') {
-	useJUnitPlatform()
+    useJUnitPlatform()
+    // Esto inyecta el parámetro automáticamente al ejecutar tests
+    jvmArgs([
+            '--add-exports', 'java.xml/com.sun.org.apache.xerces.internal.parsers=ALL-UNNAMED',
+            '--add-exports', 'java.xml/com.sun.org.apache.xerces.internal.util=ALL-UNNAMED'
+    ])
 }

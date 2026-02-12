@@ -1,0 +1,24 @@
+[
+  {
+    "fecha": "11/02/2026",
+    "horaIni": "13:30",
+    "horaFin": "14:00",
+    "nombreEmpresa": "JG Company",
+    "nombreCentro": "Centro 1",
+    "spa": "Company S.A.",
+    "nombreCurso": "Desarrollo con IA",
+    "emptyActa": 1,
+    "nombreFormador": "Pepito Pérez"
+  },
+  {
+    "fecha": "01/01/2026",
+    "horaIni": "10:30",
+    "horaFin": "11:00",
+    "nombreEmpresa": "JG Company",
+    "nombreCentro": "Centro 2",
+    "spa": "Company S.A.",
+    "nombreCurso": "Desarrollo con IA",
+    "emptyActa": 1,
+    "nombreFormador": "Pepito Pérez"
+  }
+]

@@ -1,154 +1,83 @@
 package dev.jgregorio.demo.demo_template.service;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
+import com.artofsolving.jodconverter.DefaultDocumentFormatRegistry;
+import com.artofsolving.jodconverter.DocumentFormat;
+import com.artofsolving.jodconverter.openoffice.connection.OpenOfficeConnection;
+import com.artofsolving.jodconverter.openoffice.connection.SocketOpenOfficeConnection;
+import com.artofsolving.jodconverter.openoffice.converter.StreamOpenOfficeDocumentConverter;
+import net.sf.jooreports.templates.DocumentTemplate;
+import net.sf.jooreports.templates.DocumentTemplateException;
+import net.sf.jooreports.templates.DocumentTemplateFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
+
+import java.io.*;
+import java.net.ConnectException;
 import java.util.List;
 import java.util.Map;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Service;
-
-import fr.opensagres.xdocreport.converter.ConverterTypeTo;
-import fr.opensagres.xdocreport.converter.Options;
-import fr.opensagres.xdocreport.core.XDocReportException;
-import fr.opensagres.xdocreport.document.IXDocReport;
-import fr.opensagres.xdocreport.document.registry.XDocReportRegistry;
-import fr.opensagres.xdocreport.template.IContext;
-import fr.opensagres.xdocreport.template.TemplateEngineKind;
-
-/**
- * Service for generating PDF documents from ODT templates.
- * <p>
- * This service processes a list of data maps, applies them to a provided ODT
- * template,
- * converts the result to PDF, and packages all generated PDFs into a single ZIP
- * archive.
- * </p>
- */
 @Service
 public class PdfService {
 
     private static final Logger logger = LoggerFactory.getLogger(PdfService.class);
+    //String host = "34.90.78.128"
+    String openOfficeHost = "127.0.0.1";
+    Integer openOfficePort = 8100;
 
-    private static final String PDF_EXTENSION = ".pdf";
-    private static final String DEFAULT_FILE_NAME_PREFIX = "document_";
-    private static final String DATA_FILE_NAME_KEY = "fileName";
-
-    private static final Options PDF_OPTIONS = Options.getTo(ConverterTypeTo.PDF);
-
-    /**
-     * Generates a ZIP file containing PDF documents based on the provided template
-     * and data list.
-     *
-     * @param templateStream The input stream of the ODT template. Must not be null.
-     * @param dataList       A list of maps, where each map contains data for one
-     *                       document. Must not be null or empty.
-     * @param outputStream   The output stream where the ZIP file will be written.
-     *                       Must not be null.
-     * @throws RuntimeException If an error occurs during ZIP generation or report
-     *                          processing.
-     */
-    public void generatePdf(final InputStream templateStream, final List<Map<String, Object>> dataList,
-            final OutputStream outputStream) {
-        validateInputs(templateStream, dataList, outputStream);
-
-        logger.info("Starting PDF generation for {} entries.", dataList.size());
-
-        try (ZipOutputStream zipOutputStream = new ZipOutputStream(outputStream)) {
-            final IXDocReport report = loadReport(templateStream);
-
-            int index = 1;
-            for (final Map<String, Object> data : dataList) {
-                final String fileName = resolveFileName(data, index);
-                logger.debug("Processing entry {}/{}: {}", index, dataList.size(), fileName);
-
-                addPdfToZip(zipOutputStream, fileName, report, data);
-                index++;
-            }
-
-            logger.info("ZIP archive generated successfully with {} documents.", index - 1);
-
-        } catch (final Exception e) {
-            logger.error("Error generating PDF ZIP archive", e);
-            throw new RuntimeException("Error generating PDF ZIP archive: " + e.getMessage(), e);
-        }
-    }
-
-    private void validateInputs(final InputStream templateStream, final List<Map<String, Object>> dataList,
-            final OutputStream outputStream) {
-        if (templateStream == null) {
-            throw new IllegalArgumentException("Template stream cannot be null");
-        }
-        if (dataList == null || dataList.isEmpty()) {
-            throw new IllegalArgumentException("Data list cannot be null or empty");
-        }
-        if (outputStream == null) {
-            throw new IllegalArgumentException("Output stream cannot be null");
-        }
-    }
-
-    private IXDocReport loadReport(final InputStream templateStream) throws IOException, XDocReportException {
-        // Load the report once and cache the template for this process
-        return XDocReportRegistry.getRegistry().loadReport(templateStream, TemplateEngineKind.Velocity);
-    }
-
-    private String resolveFileName(final Map<String, Object> data, final int index) {
-        String fileName = DEFAULT_FILE_NAME_PREFIX + index;
-
-        if (data != null && data.containsKey(DATA_FILE_NAME_KEY)) {
-            final Object fileNameObj = data.get(DATA_FILE_NAME_KEY);
-            if (fileNameObj != null) {
-                fileName = fileNameObj.toString();
+    public void generateZip(String templatePath, List<Map<String, Object>> dataList, OutputStream os) throws IOException {
+        try (ZipOutputStream zipOutputStream = new ZipOutputStream(os)) {
+            for (int i = 0; i < dataList.size(); i++) {
+                System.out.println(String.format("Processing data %s/%s", i+1, dataList.size()));
+                Map<String, Object> data = dataList.get(i);
+                final String entryName = "document_" + i + ".pdf";
+                final ZipEntry zipEntry = new ZipEntry(entryName);
+                zipOutputStream.putNextEntry(zipEntry);
+                NonClosingOutputStream nonClosingOutputStream =
+                        new NonClosingOutputStream(zipOutputStream);
+                generatePdf(templatePath, data, nonClosingOutputStream);
+                zipOutputStream.closeEntry();
             }
         }
-
-        if (!fileName.toLowerCase().endsWith(PDF_EXTENSION)) {
-            fileName += PDF_EXTENSION;
-        }
-
-        return fileName;
     }
 
-    private void addPdfToZip(final ZipOutputStream zipOutputStream, final String fileName, final IXDocReport report,
-            final Map<String, Object> data) throws IOException, XDocReportException {
-
-        final ZipEntry zipEntry = new ZipEntry(fileName);
-        zipOutputStream.putNextEntry(zipEntry);
-
-        final IContext context = createContext(report, data);
-
-        // Use NonClosingOutputStream to prevent XDocReport from closing the
-        // ZipOutputStream
-        report.convert(context, PDF_OPTIONS, new NonClosingOutputStream(zipOutputStream));
-        zipOutputStream.closeEntry();
+    public void generatePdf(String templatePath, Map<String, Object> dataModel, OutputStream os) throws IOException {
+        File tempFile = File.createTempFile("ODT_TO_PDF", ".odt");
+        try (FileInputStream in = new FileInputStream(templatePath)) {
+            try (FileOutputStream fos = new FileOutputStream(tempFile)) {
+                createDocument(in, dataModel, fos);
+            }
+        }
+        try (InputStream inputStream = new FileInputStream(tempFile)) {
+            convert(inputStream, os);
+        }
+        tempFile.delete();
     }
 
-    private IContext createContext(final IXDocReport report, final Map<String, Object> data)
-            throws XDocReportException {
-        final IContext context = report.createContext();
-        if (data != null && !data.isEmpty()) {
-            data.forEach(context::put);
+    private void convert(InputStream inputStream, OutputStream outputStream) throws ConnectException {
+        OpenOfficeConnection connection = new SocketOpenOfficeConnection(openOfficeHost, openOfficePort);
+        try {
+            connection.connect();
+            StreamOpenOfficeDocumentConverter converter = new StreamOpenOfficeDocumentConverter(connection);
+            DefaultDocumentFormatRegistry defaultDocumentFormatRegistry = new DefaultDocumentFormatRegistry();
+            DocumentFormat odtFormat = defaultDocumentFormatRegistry.getFormatByFileExtension("odt");
+            DocumentFormat pdfFormat = defaultDocumentFormatRegistry.getFormatByFileExtension("pdf");
+            converter.convert(inputStream, odtFormat, outputStream, pdfFormat);
+
+        } finally {
+            connection.disconnect();
         }
-        return context;
     }
 
-    /**
-     * A FilterOutputStream that ignores the close() call.
-     * Useful when passing a ZipOutputStream to a library that attempts to close the
-     * stream.
-     */
-    private static class NonClosingOutputStream extends java.io.FilterOutputStream {
-        public NonClosingOutputStream(final OutputStream out) {
-            super(out);
-        }
-
-        @Override
-        public void close() {
-            // Do not close the underlying stream
+    private void createDocument(InputStream templateIs, Map<String, Object> dataModel, OutputStream temporalOs) throws IOException {
+        try {
+            DocumentTemplateFactory templateFactory = new DocumentTemplateFactory();
+            DocumentTemplate template = templateFactory.getTemplate(templateIs);
+            template.createDocument(dataModel, temporalOs);
+        } catch (DocumentTemplateException e) {
+            throw new RuntimeException(e);
         }
     }
 }
